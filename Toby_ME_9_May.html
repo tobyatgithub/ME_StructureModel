@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<!-- work log -->
+<!-- 5.9.2017: need to fix: 1. the scaling factor. 2. plotting color.-->
+<!-- 21th Nov: cleaned up the document so that it complies with the Html style guidlines; took style codes out of html file, created independent css stylesheet; re-grouped existing codes with div tag; added seal image to the header    -->
+<!-- 22th Nov: learned adobe Xd beta (a niu-bi new professional tool fo UX/UI designer) and attempted creating wireframe with it, Xd crashed, work lost; restarted   -->
+<!-- 25th Nov: learned css box model; created the header -->
+<!-- 29th Nov: created the footer; created input panel and output panel; positioned headings and image in the input panel-->
+<!-- 30th Nov: worked on input field and button -->
+<!-- 22th,Jan: from Prof.Ted, the program shall rotate before shifting to avoid potential distortion on rotation, so im gonna do it. -->
+
+<html>
+    
+<head>
+<!--in this html, i want to merge the calculation, and the plot functions into one funciton. So that, on the website, there will be only one button for plot, and one for clear. which should be nicer-->
+  <link rel="stylesheet" href="style_12th_Dec.css">
+  <script>   
+    // setting global variables
+    var r1,q1,m1,phi1,r2,q2,m2,phi2,r3,q3,m3,phi3,r4;
+      // r_i = length of the mechanism bar
+      // q_i = length between rotation pt & cm
+      // m_i = mass (in kg)
+      // phi_i = rotation angle
+      
+    var grav,theta1,theta2,theta3,rp0,rp1,rp2,rp3; 
+      // theta_i = angles to solve
+      // rp_i = rotation pt of each block
+      
+    var alpha, beta; 
+    var p1, p2, p3, p4, p5, density
+      // input values. identical to page graph
+    var rpt,tx,ty,zm; 
+    
+    // initialize the variables used for solving equations. 
+    var testtest = [0,0];
+    var theta1s = [0,0];
+    var theta2s = [0,0];
+    var theta3s = [0,0];
+    var lambda = [0,0];
+    var origin = [0,0];
+    var a, b, c, fa, fb, f0, A, RHS, dim, ab
+    var ofst = [[20,350],[330,350]];
+    var tolerance = 0.0001;     
+    var dangleL, dangleT, dangleR
+    var sf, Sx1, Sy1, Mx1, My1, boxL, boxT, boxR, boxTt, boxRt;
+    var Lrp,Rrp,Trp,shift,testtest,thetaR1,thetaR2,thetaR3,rp;
+    var thetaStart, thetaEnd, numSteps, thetaStep,thetas
+
+function solve(){
+    // the main function which solve equation.
+    // input: no-need, it will read value from page block auto
+    // output: draw the canvas and print the critical lambda value.
+//    console.log("Clear!")
+    var C = document.getElementById("myCanvas");
+    var ctx = C.getContext("2d");
+    ctx.beginPath;
+    //ctx.clearRect(0,0,2000,2000);
+    ctx.clearRect(0, 0, C.width, C.height)
+    ctx.closePath();
+    
+    //Part one, parameter collection
+    //to solve the problem, first we need to read the values 
+    p1 = document.getElementById('value-p1').value;
+    p2 = document.getElementById('value-p2').value;
+    p3 = document.getElementById('value-p3').value;
+    p4 = document.getElementById('value-p4').value;
+    p5 = document.getElementById('value-p5').value;
+    density = document.getElementById('value-density').value;
+
+    alpha = document.getElementById('alpha').value; 
+    beta = document.getElementById('beta').value; 
+
+    //and then turn the typeof those parameters into numerical for further calculation
+    p1 = Number(p1);
+    p2 = Number(p2);
+    p3 = Number(p3);
+    p4 = Number(p4);
+    p5 = Number(p5);
+    alpha = Number(alpha);
+    beta = Number(beta); 
+    
+    //we set sanity check for parameters to prevent meaningless cases 
+    if(p1>=p2){window.alert("Warning: p1 shall be smaller than p2");} 
+    if(p3>p4){window.alert("Warning: p3 shall be smaller than p4");} 
+    if(p4>=p5){window.alert("Warning: p4 shall be smaller than p5");} 
+    if(p3-p1 / 2.0 >= p5){window.alert("Warning: too small gap between p3 and p1");} 
+    if(alpha>90 || alpha<0){window.alert("Warning: wrong input of angle alpha");}
+    if(beta>90 || beta<0){window.alert("Warning: wrong input of angle beta");}
+
+    // 5.9.2017 update: sf now associate with max instead of p1, such that, max(p_i) * sf = 300
+    //sf = scale factor, we will use this factor to keep the plot appropariate
+    max_p = Math.max(p1,p2,p3,p4,p5)
+    sf = 300/max_p;
+    //notice that sf shall only be used in canvas plotting calculation, not in lambda calculation.
+    
+/////////////////////////////end of parameter collection////////////////
+
+    //Part Two, Calculation
+    //to draw the arc, we realize it by devide the arc into 6 pieces of line segment (for smoother arc, we could increase the # of line segment. while 6 gives pretty good resolution)
+    alpha = alpha*Math.PI/180; //change alpha and beta from degree to radius, the default unit for javascript sin,cos calculations
+    beta = beta*Math.PI/180;  
+    dangleL = (Math.PI/2 - alpha)/6;
+    dangleT = alpha/6 + beta/6;
+    dangleR = (Math.PI/2 - beta)/6;
+        
+    Sx1 = ((p3-p5)/(2*(p5-p4)/p2 + 1/(Math.tan(alpha))));//[MAYBE]
+    Sy1 = (Sx1 * (-1/Math.tan(alpha)));
+    Mx1 = ((p5-p3)/(1/Math.tan(beta)-2*(p4-p5)/p2));
+    My1 = (Mx1 * (1/Math.tan(beta)));
+            
+    //(x,y) locations of box Left, box Top, and box Right are as follows:
+    boxL = [
+            [(p2-p1)/2,0],
+            [0,0],
+            [0,p4],
+            [p2/2+Sx1,p3+Sy1],
+            [p2/2 - (p1/2)*Math.cos(Math.PI/2-alpha),p3+(p1/2)*Math.sin(Math.PI/2-alpha)],
+            [(p2-p1)/2 + p1/2-(p1/2)*Math.cos(5*dangleL),p3 + Math.sin(5*dangleL)*p1/2],
+            [(p2-p1)/2 + p1/2-(p1/2)*Math.cos(4*dangleL),p3 + Math.sin(4*dangleL)*p1/2],
+            [(p2-p1)/2 + p1/2-(p1/2)*Math.cos(3*dangleL),p3 + Math.sin(3*dangleL)*p1/2],
+            [(p2-p1)/2 + p1/2-(p1/2)*Math.cos(2*dangleL),p3 + Math.sin(2*dangleL)*p1/2],
+            [(p2-p1)/2,p3]
+        ];
+        
+    boxT = [
+            [p2/2 + Sx1,p3+Sy1],
+            [p2/2,p5],
+            [p2/2 + Mx1,p3+My1],
+            [p2/2 + (p1/2)*Math.cos(Math.PI/2-beta),p3+(p1/2)*Math.sin(Math.PI/2-beta)],
+            [p2/2 -(p1/2) * Math.cos(Math.PI/2 - alpha + 5*dangleT), p3 + (p1/2) * Math.sin(Math.PI/2 - alpha + 5*dangleT)],
+            [p2/2 -(p1/2) * Math.cos(Math.PI/2 - alpha + 4*dangleT), p3 + (p1/2) * Math.sin(Math.PI/2 - alpha + 4*dangleT)],
+            [p2/2 -(p1/2) * Math.cos(Math.PI/2 - alpha + 3*dangleT), p3 + (p1/2) * Math.sin(Math.PI/2 - alpha + 3*dangleT)],
+            [p2/2 -(p1/2) * Math.cos(Math.PI/2 - alpha + 2*dangleT), p3 + (p1/2) * Math.sin(Math.PI/2 - alpha + 2*dangleT)],
+            [p2/2 -(p1/2) * Math.cos(Math.PI/2 - alpha + dangleT), p3 + (p1/2) * Math.sin(Math.PI/2 - alpha + dangleT)],
+            [p2/2 - (p1/2)*Math.cos(Math.PI/2-alpha),p3+(p1/2)*Math.sin(Math.PI/2-alpha)]
+        ];
+        
+    boxR = [
+            [p2/2 + (p1/2)*Math.cos(Math.PI/2-beta),p3+(p1/2)*Math.sin(Math.PI/2-beta)],
+            [p2/2+Mx1,p3+My1],
+            [p2,p4],
+            [p2,0],
+            [p2-(p2-p1)/2,0],
+            [p2-(p2-p1)/2,p3],
+            [p2/2+(p1/2)*Math.cos(dangleR),p3+(p1/2)*Math.sin(dangleR)],
+            [p2/2+(p1/2)*Math.cos(2*dangleR),p3+(p1/2)*Math.sin(2*dangleR)],
+            [p2/2+(p1/2)*Math.cos(3*dangleR),p3+(p1/2)*Math.sin(3*dangleR)],
+            [p2/2+(p1/2)*Math.cos(4*dangleR),p3+(p1/2)*Math.sin(4*dangleR)],
+            [p2/2+(p1/2)*Math.cos(5*dangleR),p3+(p1/2)*Math.sin(5*dangleR)]
+        ];
+        
+    //ri = effective length of the 4-bar-mechanism 
+    //qi = the length between the rotation point and the center-of-mass
+    //mi = mass
+    //phi = angle between ri and qi
+    //for more info about ri,qi,phi, please refer to the support pdf "me311Project1_150325.pdf"
+    
+    //in order to get values for phi, im using angle formula of vectors  (a dot b = |a||b|cos(phi)) 
+    
+    centerofmass1 = centermass(boxL,sf,ofst).cmreal; //this will not only give (x,y) location of the center of mass for a given closed object, but also plot it on canvas
+//    console.log("Center of mass 1",centerofmass1)
+//    //test set
+//    r1=5;
+//    q1=2.5;
+//    m1=1;
+//    phi1=0*30*Math.PI/180;
+//    r2=5;
+//    q2=2.5;
+//    m2=1;
+//    phi2=0*30*Math.PI/180;
+//    r3=5;
+//    q3=2.5;
+//    m3=1;
+//    phi3=0*30*Math.PI/180;
+//    r4=10;
+//    g=9.8;
+//    //center of mass and rotation point locations for later plot
+//    cm1 = q1 * [Math.cos(theta1+phi1),Math.sin(theta1+phi1)];
+//    cm2 = r1 * [Math.cos(theta1),Math.sin(theta1)] + q2 *
+//                [Math.cos(theta2+phi2),Math.sin(theta2+phi2)];
+//    cm3 = r1 * [Math.cos(theta1),Math.sin(theta1)] + r2 *
+//                [Math.cos(theta2),Math.sin(theta2)] + q3 *
+//                [Math.cos(theta3+phi3),Math.sin(theta3+phi3)];
+//    rp0 = [0,0];
+//    rp1 = r1 * [Math.cos(theta1),Math.sin(theta1)];
+//    rp2 = rp1 + r2 *[Math.cos(theta2),Math.sin(theta2)];
+//    rp3 = [p2,0];
+    
+    
+    //actual setting
+    r1 = Math.sqrt((boxL[0][0]-boxL[3][0])*(boxL[0][0]-boxL[3][0])+(boxL[0][1]-boxL[3][1])*(boxL[0][1]-boxL[3][1]));
+    q1 = Math.sqrt((centerofmass1[0]-boxL[0][0])*(centerofmass1[0]-boxL[0][0])+(boxL[0][1]-centerofmass1[1])*(boxL[0][1]-centerofmass1[1]));
+    m1 = centermass(boxL,sf,ofst).volumn * density;//mass seems not-used. not sure what to do abt it
+    phi1 = compute_angle_between(centerofmass1,boxL[3],boxL[0]);
+    console.log("cm1=",centerofmass1,"r1=",r1,"q1=",q1,"m1=",m1,"phi1=",phi1)
+         
+    centerofmass2 = centermass(boxT,sf,ofst).cmreal;
+    r2= Math.sqrt((boxL[3][0]-boxT[3][0])*(boxL[3][0]-boxT[3][0])+(boxL[3][1]-boxT[3][1])*(boxL[3][1]-boxT[3][1]));
+    q2= Math.sqrt((centerofmass2[0]-boxL[3][0])*(centerofmass2[0]-boxL[3][0])+(boxL[3][1]-centerofmass2[1])*(boxL[3][1]-centerofmass2[1]));
+    m2 = centermass(boxT,sf,ofst).volumn * density;
+    phi2=compute_angle_between(centerofmass2,boxT[3],boxL[3]);
+    console.log("cm2=",centerofmass1,"r2=",r2,"q2=",q2,"m2=",m2,"phi2=",phi2)
+         
+    centerofmass3 = centermass(boxR,sf,ofst).cmreal;
+    r3=Math.sqrt((boxT[3][0]-boxR[3][0])*(boxT[3][0]-boxR[3][0])+(boxT[3][1]-boxR[3][1])*(boxT[3][1]-boxR[3][1]));
+    q3=Math.sqrt((centerofmass3[0]-boxT[3][0])*(centerofmass3[0]-boxT[3][0])+(boxT[3][1]-centerofmass3[1])*(boxT[3][1]-centerofmass3[1]));
+    m3=centermass(boxR,sf,ofst).volumn * density;
+    phi3= compute_angle_between(centerofmass3,boxR[3],boxT[3]);
+    console.log("cm3=",centerofmass3,"r3=",r3,"q3=",q3,"m3=",m3,"phi3=",phi3)
+         
+    r4 = Math.abs(boxL[0][0]-boxR[3][0]);
+    q4 = 0;
+    console.log('r4',r4)
+    grav = 9.8;
+        
+    //define the vector loop function which must be 0---a method associated with four-bar mechanisam. we use it as: we offer guessed pairs of (theta3, theta1), and calculate the value of f ---> if f is close to 0, then this pair is useful. else discard
+    function vectorloop(theta3,theta1){ 
+        var f = 2*r1*r3*Math.sin(theta1)*Math.sin(theta3)+(2*r1*r3*Math.cos(theta1)-2*r3*r4)*Math.cos(theta3)-2*r1*r4*Math.cos(theta1)+r4*r4+r3*r3-r2*r2+r1*r1;   
+        return f
+            }
+
+    //linespace the thetas
+    //var thetaStart = 95*Math.PI/180; //???why 95??? <--shall be theta1 calculated from r1 and q1
+    
+//    thetaStart = Math.acos(boxL[3][0]/Math.sqrt(boxL[3][0]*boxL[3][0]+boxL[3][1]*boxL[3][1])) //this is the starting theta1 given by the sturcture in lambda = 0 condition
+    //hahahah!!!i found it! the thetaStart was calculated wrong!!!
+    b_side = Math.abs(boxL[0][0]-boxL[3][0]);
+    if(boxL[0][0]>boxL[3][0])//obtuse theta1 at begining
+    {
+        thetaStart = Math.PI - Math.acos(b_side/r1);
+        console.log("obtuse starting theta1",thetaStart)
+        }
+    else if(boxL[0][0]<boxL[3][0])//acute
+    {
+        thetaStart = Math.acos(b_side/r1);
+        console.log("acute starting theta1",thetaStart)
+    }
+    else{
+        thetaStart = Math.PI/2;
+        console.log("90 starting theta1",thetaStart)
+    }
+    
+    thetaEnd = thetaStart - 0.44;///theta range = theta1 - (theta1-20) degrees
+    numSteps = 8;//[MAYBE make it an input]
+    thetaStep = (thetaEnd-thetaStart)/(numSteps-1);
+    thetas = Array.apply(null, new Array(numSteps)).map(Number.prototype.valueOf,0);
+        //set theta values for rotation calculation
+    for (kk = 0; kk < numSteps; kk++)
+        {//var den = kk + 1;
+         thetas[kk] = thetaStart + thetaStep * kk;
+            }
+        
+        //then, we use a for loop to find critical values of theata 1 via vectorloop equation
+    for (var i = 0; i < numSteps; i++){
+        theta1 = thetas[i]; //grabe initial theta1 values
+        theta1s[i] = theta1; //save theta1 value into the theta1s vector
+            
+        //use bisection to warm start theta3 search
+        for(j = 1; j < 50; j++){
+            a = -50*Math.PI/180 - (j-1)*Math.PI/180
+            b = a - 1*Math.PI/180;
+            fa = vectorloop(a,theta1);
+            fb = vectorloop(b,theta1);
+            if(fa * fb < 0){j = 50}
+            }
+        
+        theta3Start = a;
+        theta3End = b;
+        theta3Guess = theta3Start;
+            
+         //solve for theta3 by using bisection part, the boundaries calculated above are the key to the accuracy of this calculation.
+        while(vectorloop(theta3Guess,theta1)!=0 && Math.abs(theta3Start-theta3End) >= tolerance){
+            theta3Guess = (theta3Start + theta3End)/2;
+            if (vectorloop(theta3Guess,theta1) * vectorloop(theta3Start,theta1) < 0){theta3End = theta3Guess}
+            else {theta3Start = theta3Guess}
+            }//bisection to find roots, theta3Guess shall be the output
+
+        theta3 = theta3Guess; 
+        theta2 = -Math.asin(r3*Math.sin(theta3)/r2+r1*Math.sin(theta1)/r2);
+        fa = vectorloop(theta3,theta1);//
+            //console.log(theta1*180/Math.PI,theta2*180/Math.PI,theta3*180/Math.PI)
+            //document.getElementById('msg-test').innerHTML = theta3s;
+        theta3s[i]=theta3;
+        theta2s[i]=theta2;
+            
+            //adjusted A matrix, which shall be 9 by 9
+        A = [[-q1*Math.sin(theta1+phi1)*m1,0,0,r1*Math.sin(theta1),-r1*Math.cos(theta1),0,0,0,0],[m1,1,0,-1,0,0,0,0,0],[0,0,1,0,-1,0,0,0,0],[m2,0,0,1,0,-1,0,0,0],[0,0,0,0,1,0,-1,0,0],[m3,0,0,0,0,1,0,-1,0],[-q2*Math.sin(theta2+phi2)*m2,0,0,0,0,r2*Math.sin(theta2),-r2*Math.cos(theta2),0,0],[-m3*q3*Math.sin(theta3+phi3),0,0,0,0,0,0,r3*Math.sin(theta3),-r3*Math.cos(theta3)],[0,0,0,0,0,0,1,0,-1]];
+
+        RHS = [grav*m1*q1*Math.cos(theta1+phi1),0,m1*grav,0,m2*grav,0,grav*m2*q2*Math.cos(theta2+phi2),grav*m3*q3*Math.cos(theta3+phi3),m3*grav];
+        
+        //GaussJ
+        //p is the i in the pdf, which indicates the row
+        //q is the j in the pdf, which indicates the column
+        dim = 9;
+        ab = [A,RHS]; 
+            for (var p = 0; p < dim; p++)
+                { 
+                for (var q = 0; q < dim; q++)
+                    { 
+                    if (p != q)
+                        {
+                        factor = -ab[0][q][p]/ab[0][p][p];
+                        ab[1][q] = ab[1][q] + (factor) * ab[1][p]; 
+                        for(var k = 0, length = dim; k < length; k++)
+                            {
+                            ab[0][q][k] = (factor) * ab[0][p][k] + ab[0][q][k];
+                            }       
+                        }
+                    }
+                }
+        
+        for (var milk = 0; milk < dim; milk++)
+            { //here the factors where divided out to make matrix identity
+            factor2 = ab[0][milk][milk];
+            ab[0][milk][milk] = ab[0][milk][milk]/factor2;
+            ab[1][milk] = ab[1][milk]/factor2
+        
+            }
+            
+            
+            //document.getElementById('msg').innerHTML = A;
+        RHS = ab[1];
+        A = ab[0];
+        console.log("RHS == ",RHS)
+        lambda[i] = RHS[0];//since we reformated matrix A, which moved m1, 1, 0, ...0, lambda to the second row
+        }
+    
+////////////////by now we shall have solved all the values we need/////////////
+
+    
+    boxTt = [
+        [0,0],
+        [0,0],
+        [0,0],
+        [0,0],
+        [0,0],
+        [0,0],
+        [0,0],
+        [0,0],
+        [0,0],
+        [0,0]
+        ];  
+
+    //draw the top portion of the picture
+    C = document.getElementById("myCanvas");
+    ctx = C.getContext("2d");
+    drawShape(ctx,boxL,ofst[0],sf);
+    drawShape(ctx,boxR,ofst[0],sf);
+    drawShape(ctx,boxT,ofst[0],sf);
+    //also. the function drawShape will apply sf to boxLRTs
+    
+    
+    //draw the critical lumbda on screen
+    var word = lambda[0]
+    ctx.font = "30px Arial";
+    ctx.fillText(" \u03bb = "+word.toFixed(3) + "m/s^2" ,180,40);
+    ctx.closePath();
+    
+    //we define the initial rotation point
+    Lrp = boxL[0];//rotation point of left box
+    Rrp = boxR[3];//rotation point of right box
+    Trp = boxT[0];
+    //notice that Lrp and Rrp should not change no matter what, but Trp will change
+    
+    shift = [0,0];
+    testtest = [0,0];
+    tolerance = 0.1;
+
+	//finish reading of data, now start to draw
+	
+    for(j = 0; j < numSteps; j++)
+    {   
+        thetaR1 = (theta1s[j]-theta1s[0]);//used in drawShapeRotated function
+        thetaR2 = (theta2s[j]-theta2s[0]);
+        
+        //console.log("print theta2", thetaR2)
+        thetaR3 = (theta3s[j]-theta3s[0]);
+            
+        //change color for critical lambda
+        //ctx.strokeStyle = '#000000';
+        if(Math.abs(lambda[j]) <= tolerance){ //this means the strucutre is close to its critical condition, change color to 'red'
+            ctx.strokeStyle = '#ff0000';
+            //var thetacritical = thetaR1;
+            }
+        else if(lambda[j] <= 0){//if lambda <0 means the structure couldnt self stand, change color to 'grey'
+            ctx.strokeStyle = '#94b7b7';
+            }
+        else{//the structure is self-standing, color 'black'
+            ctx.strokeStyle = '#000000';
+            }
+
+        drawShapeRotated(ctx,boxL,ofst[1],Lrp,thetaR1)
+        
+        xi = sf*r1*Math.cos(theta1s[0]); //not sure whether shall keep sf here...
+        yi = sf*r1*Math.sin(theta1s[0]);
+        xf = sf*r1*Math.cos(theta1s[j]);
+        yf = sf*r1*Math.sin(theta1s[j]);
+        shift = [xf-xi,yf-yi];
+
+        //so...we want to rotate the box first
+        for (var k = 0;k<boxT.length; k++){
+            opx = boxT[k][0];
+            opy = boxT[k][1];
+            rxy = rap(opx,opy,Trp[0],Trp[1],thetaR2);
+            //console.log("value of rxy before shifting:",rxy)
+            boxTt[k][0] = rxy[0]+shift[0];
+            boxTt[k][1] = rxy[1]+shift[1];
+        }
+        drawShape(ctx,boxTt,ofst[1],sff=1);        
+        drawShapeRotated(ctx,boxR,ofst[1],Rrp,thetaR3);
+    }
+    
+    
+}
+    
+function cleart(){
+//    console.log("Clear!")
+    var C = document.getElementById("myCanvas");
+    var ctx = C.getContext("2d");
+    ctx.beginPath;
+    //ctx.clearRect(0,0,2000,2000);
+    ctx.clearRect(0, 0, C.width, C.height)
+    ctx.closePath();
+       // testtest[0] = 1;
+    //    testtest[1] = 2;
+      //  testtest[2] = 3;
+} 
+     
+
+function centermass(verticies,sf,ofst) {
+
+     //ofst = [[20,400],[20,900]]
+     point1 = [0.,0.];
+     point2 = [0.,0.];
+     vector1 = [0.,0.];
+     vector2 = [0.,0.];
+     
+     loop = verticies.concat([verticies[0]]); //append the verticies with its starting value, (e.g. change 1,2,3 to 1,2,3,1)
+     xbar = 0;
+     ybar = 0;
+     xystart=2.;
+     xystep=2.;
+     counter = 0
+     maxX = loop[0][0];
+     minX = loop[0][0];
+     maxY = loop[0][1];
+     minY = loop[0][1];
+    for(k=0;k<loop.length;k++) {
+      if(loop[k][0]>maxX) {
+        maxX = loop[k][0];
+      }
+      if(loop[k][0]<minX) {
+        minX = loop[k][0];
+      }
+      if(loop[k][1]>maxY) {
+        maxY = loop[k][1];
+      }
+      if(loop[k][1]<minY) {
+        minY = loop[k][1];
+      }
+//    console.log(loop[k][0],loop[k][1]);
+    }
+//    console.log(minX,maxX,minY,maxY);
+    //June.16 refine of xy steps scales
+    //we take the minumum length
+     lengthX = maxX-minX;
+     lengthY = maxY-minY;
+     gaptotal = Math.min(lengthX,lengthY);
+    //then use this minumum length to define the cell size
+    //the size is defined as we cut the shortest side into 100 pieces
+     step = gaptotal/100;
+     xSteps = (lengthX/step) + 2;
+     ySteps = (lengthY/step) + 2;
+     cellnumber =0;
+    
+    //for(k=0;k<loop.length;k++) {
+        //console.log(loop[k][0],loop[k][1]);
+    //}
+
+    for(xStep=0;xStep<=xSteps;xStep++) {
+      x = minX-1.1*step+xStep*(maxX-minX)/xSteps;
+        for(yStep=0;yStep<=ySteps;yStep++) {
+            y = minY-1.1*step+yStep*(maxY-minY)/ySteps;
+                intCounter = 0;
+                for(l=0;l<loop.length-1;l++) {
+                    nextPoint = l+1;
+                    for(u=0;u<2;u++) {
+                        point1[u] = loop[l][u];
+                        vector1[u] = loop[nextPoint][u] - loop[l][u];
+                }
+                point2[0] = x;
+                point2[1] = y;
+                vector2[0] = 1.;
+                vector2[1] = 0.;
+            st = int2lines(point1,vector1,point2,vector2)
+            if(st[0] > 0 && (st[1]>0 && st[1]<1)) {
+                intCounter++;
+            }
+        }
+        if(intCounter%2 == 1) {
+            //console.log("Point ",point2[0],point2[1]," Inside");
+            counter++
+            xbar = xbar + point2[0];
+            ybar = ybar + point2[1];
+            cellnumber = cellnumber + 1;
+
+        } else {
+            //console.log("Point ",point2[0],point2[1]," Outside");
+        }
+     }
+    }
+    //we also need volumn to compute mass for each blocks
+    //and since volumn = cellnumber x cellsize
+    volumn = cellnumber * (lengthX/step) * (lengthY/step)
+    cmx_real = xbar/counter;
+    cmy_real = ybar/counter
+    cmx = sf*xbar/counter; //<-- Nov.17 i add sf here to correct display
+    cmy = sf*ybar/counter;
+    cmx = cmx.toFixed(2);
+    cmy = cmy.toFixed(2);
+    //show the text cmx, cmy by its real value
+    //and convert them into corrected ones for plotting location
+    cmx_corrected = cmx;
+    cmy_corrected = cmy;
+    cmx_real = cmx_real.toFixed(2);
+    cmy_real = cmy_real.toFixed(2);
+    //document.getElementById("CMofBoxL").innerHTML = "(" + cmx + "," + cmy + ")";
+     C = document.getElementById('myCanvas');
+     ctx = C.getContext('2d');
+     radius = 5;
+    //then map the corrected ones
+     mapedcmpts = mtc(Number(cmx_corrected),Number(cmy_corrected),Number(ofst[0][0]),ofst[0][1]);
+    //draw the dot
+    ctx.beginPath();
+    ctx.arc(mapedcmpts[0], mapedcmpts[1], radius, 0, 2 * Math.PI, true);
+    ctx.fillStyle = 'red';
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = "13px Arial";
+    ctx.fillText("("+ cmx_real+","+cmy_real+")",mapedcmpts[0]-26,mapedcmpts[1]+20);
+    return {
+        cmreal: [Number(cmx_real), Number(cmy_real)],
+        volumn: volumn
+    }
+}//end of centerofmass-function    
+    
+function rap(x,y,rpx,rpy,theta) {
+    
+    // Translate back to the origin
+    ix = x-rpx;
+    iy = y-rpy;
+    
+    // Rotate around the point
+    iix = Math.cos(theta)*ix-Math.sin(theta)*iy;
+    iiy = Math.sin(theta)*ix+Math.cos(theta)*iy;
+    
+    // Translate back
+    rx = iix+rpx;
+    ry = iiy+rpy;
+    return [rx,ry];
+}
+    
+// map to canvas
+// flip the y axis properly, this should also scale the image to fit but it does not 
+function mtc(x,y,ox,oy) {
+    return [x + ox, oy - y];
+}
+
+    
+// Draw the shape from the list of points on the canvas with the given offset
+function drawShape(c,list,ofst,sf) {
+    console.log("runing draw shape of", list)
+    for(i = 0; i < list.length; i++){
+        list[i][0] = list[i][0] * sf;
+        list[i][1] = list[i][1] * sf;
+    }
+    xy = mtc(
+            list[0][0],
+            list[0][1],
+            ofst[0],
+            ofst[1]);  
+    c.beginPath();
+    //ctx.strokeStyle = '#000000';
+    c.moveTo(xy[0],xy[1]);
+    for(i=1;i<list.length;i++) {
+            xy = mtc(
+                    list[i][0],
+                    list[i][1],
+                    ofst[0],
+                    ofst[1]);
+            c.lineTo(xy[0],xy[1]);
+    }
+    c.lineWidth = 2;
+    c.closePath();
+    c.stroke();
+}   
+
+// Draw the shape rotated about a specific point by a given angle
+function drawShapeRotated(c,list,ofst,rp,angle) {
+    opx = list[0][0];
+    opy = list[0][1];
+    rxy = rap(opx,opy,rp[0],rp[1],angle);
+    xy = mtc(
+            rxy[0],
+            rxy[1],
+            ofst[0],
+            ofst[1]);  
+    c.beginPath();    
+    c.moveTo(xy[0],xy[1]);
+    for(i=1;i<list.length;i++) {
+            opx = list[i][0];
+            opy = list[i][1];
+            rxy = rap(opx,opy,rp[0],rp[1],angle);
+            xy = mtc(
+                    rxy[0],
+                    rxy[1],
+                    ofst[0],
+                    ofst[1]);
+            c.lineTo(xy[0],xy[1]);
+    }
+    c.closePath();
+    c.stroke();
+}       
+    
+    
+function int2lines(p1,v1,p2,v2) {
+       
+    var x1 = p1[0];
+    var y1 = p1[1];
+    var f1 = v1[0];
+    var g1 = v1[1];
+    var x2 = p2[0];
+    var y2 = p2[1];
+    var f2 = v2[0];
+    var g2 = v2[1];
+    
+    var f1g2 = f1*g2;
+    var f2g1 = f2*g1;
+    var det = f2g1-f1g2;
+//    console.log(det,f1g2,f2g1,x1,y1,f1,g1,x2,y2,f2,g2);
+    if(Math.abs(det) < 1e-6) {
+        //console.log("parallel lines");
+        return [0,0];
+    } else {
+        var y21 = y2-y1;
+        var x21 = x2-x1;
+        var dinv = 1.0/det;
+        var s = (f2*y21 - g2*x21)*dinv;
+        var t = (f1*y21 - g1*x21)*dinv;
+    }
+    return [t,s];
+    
+}    
+    
+function cm() {
+    pt_1 = centermass(boxL)
+    //console.log(pt_1)
+    pt_2 = centermass(boxT)
+    //console.log(pt_2)
+    pt_3 = centermass(boxR)
+    //console.log(pt_3)
+    //document.getElementById('checkpt-x').innerHTML = pt_1 + pt_2 + pt_3 ;
+}    
+    
+function compute_angle_between(pointA,pointB,rotatePoint){ 
+    //three locations shall be input to identify the two vectors and so that their angle.
+    var vector1 = [pointA[0]-rotatePoint[0],pointA[1]-rotatePoint[1]]
+    var vector2 = [pointB[0]-rotatePoint[0],pointB[1]-rotatePoint[1]]
+    var result = Math.acos((vector1[0]*vector2[0]+vector1[1]*vector2[1])/(Math.sqrt(vector1[0]*vector1[0]+vector1[1]*vector1[1])*Math.sqrt(vector2[0]*vector2[0]+vector2[1]*vector2[1])))//fomular for angle between two vectors. All angles must be in radius
+    return result                                                   
+}        
+</script>    
+</head>
+    
+<body>
+<div class="dabloc">
+  <header>
+<!-- image of UR seal; course term, name and #; return button to the parent page -->   
+      <div class="seal">
+        <image id="seal" src="http://www.rochester.edu/college/assets/cinnamon/images/logos/hajim-logo.png"/>
+      </div>
+      <div class="three_txt">
+          <a href="http://www.me.rochester.edu/courses/ME206/"><p id="back">back to course page</p></a>
+            <p id="spring">Spring 2016</p> 
+            <h3>ME 206</h3>
+
+      </div>
+      <div class="big_txt">
+        <h2>BUILDING ENGINEERING AND TECHNOLOGY IN ANTIQUITY</h2>
+      </div>
+
+
+         
+  </header>
+<div class="big_box">
+  <div class="input_panel">
+    <h1 class="title">Parameter Setup</h1>
+    <h2 id="dia_txt">Diagram</h2>
+    <h2 id="para_txt">Parameters</h2>
+    <img src="http://www.me.rochester.edu/projects/structuremodel/diagramNov29.png"/>
+    <div class="type_in">
+    <ul id="p_value">
+    <li>P1 = <input type="text" maxlength="4" name="value-p1" id='value-p1' value='1.5'/></li>
+    <li>P2 = <input type="text" maxlength="4" name="value-p2" id='value-p2' value='2.1'/></li>
+    <li>P3 = <input type="text" maxlength="4" name="value-p3" id='value-p3' value='1.5'/></li>
+    <li>P4 = <input type="text" maxlength="4" name="value-p4" id='value-p4' value='2.0'/></li>
+    <li> P5 = <input type="text" maxlength="4" name="value-p5" id='value-p5' value='3.0'/></li>
+    <li class="unit">(unit: meter) </li>    
+    </ul>
+    <div class="angle_btn">
+        <ul>
+        <li>&alpha;  = <input type="text" maxlength="4" name="alpha" id='alpha' value='45'/></li>
+        <li>&beta;  = <input type="text" maxlength="4" name="beta" id='beta' value='45'/>  </li>
+        <li class="unit">(unite: degree)</li>
+        <li>&rho;  = <input type="text" maxlength="4" name="rho" id='value-density' value='2400'/>  </li>  
+        <li class="unit">(unit: kg/m^3)</li>
+        </ul>
+        <button onclick="solve()">Simulate</button>
+    </div>
+    </div>
+    </div>
+  <div class="output_panel">
+    <h1 class="title">Analytical Output</h1>
+    <div>  
+    <h2 id="grav">Center of Gravity</h2>
+    <h2 id="simul">Rotation Simulation</h2>
+    </div>
+    <div id="canvas_div">
+        <canvas id="myCanvas" width="630" height="360" style="border:1px solid #d3d3d3;" display="inline-block">
+    </div>
+</div>
+    </div>
+    
+    
+<div class="footer">
+    <div class="row">
+      <div class="col-md-3" id="lecture">
+          <h3>Lecture</h3>
+          <ul>
+          <li>16:50-18:05 (Tuesday,Thursday)  </li>
+          <li>Morey 504</li>
+          </ul>
+        </div>
+      <div class="col-md-3">
+          <h3>Office Hours</h3>
+          <ul>
+          
+          <li>Prof.Perucchio</li>
+          <li>MONDAY 11:00-12:00 noon</li>
+          <li>WEDNESDAY 2:00-3:00 pm</li>
+          <li>Hopeman 415 </li>
+          </ul>
+        </div>
+      <div class="col-md-3">
+          
+          <ul>
+<!--            <li>Toby F. Huang, TA</li>-->
+<!--            <li>SUNDAY 5:00-6:00 pm </li>-->
+            <li>WEDNESDAY 5:00-6:00 pm </li>
+            <li>2nd floor of the IT center - back of Rush Rhees</li>
+          </ul>
+        </div>
+    </div>
+<!--content: social media links, course-related info and links -->
+</div>
+</div>
+</body>
+    
+</html>
+
+<!--
+testbox = [[0,0],[100,0],[100,100],[0,100]];
+drawShape(ctx,testbox,ofst[0],sff=1);
+//drawShapeRotated(ctx,testbox,ofst[0],[0,0],Math.PI/4);
+shifttest = [50,50];
+Trp = [0,0];
+for (var k=0; k < testbox.length; k++){
+opx = testbox[k][0];
+opy = testbox[k][1];
+rxy = rap(opx,opy,Trp[0],Trp[1],0);
+testbox[k][0] = rxy[0] + shifttest[0];
+testbox[k][1] = rxy[1] + shifttest[1];
+}
+drawShape(ctx,testbox,ofst[0],sff=1);
+  -->
