@@ -1,8 +1,8 @@
 ## ME_StructureModel
 ### **General**  
 This is the project I did during Summer 2015 - Fall 2016 for the Mechanical Engieering Department at University of Rochester with Prof. Perucchio. 
-The overall goal is to create a **web application** where students can input parameters of pre-defined structures and see how parameters will effect structures'
-ability to sustain horizontal accelerations (a mimic to earthquake.)
+The overall goal is to create a **web application** where students can input parameters of pre-defined structures and see how parameters will effect structures' ability to sustain horizontal accelerations (a mimic to earthquake.)  
+You can find the [web here.](http://www2.me.rochester.edu/projects/structuremodel/Toby_ME_9_May.html)
 
 ### **Content**
 This web application contains several features:  
